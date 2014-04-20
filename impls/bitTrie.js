@@ -117,9 +117,58 @@ PersistentVector.prototype.push = function PersistentVector__push(val) {
   }
 };
 
+function popTree (tree, length) {
+  // This only works when leaf node only has one element to be removed.
+  // This also only works when depth is greater or equal to 2. If depth is 1,
+  // we handle it in the pop method.
+  var depth = Math.ceil(Math.log(length)/Math.log(32));
+  var cloned = tree.slice();
+  if (depth == 2) {
+    // Base case
+    var index = (length - 1) / Math.pow(32, depth-1);
+    cloned[index] = null;
+    return cloned;
+  }
+  var capacitySubtree = Math.pow(32, depth-1);
+  var index = Math.floor((length-1)/capacitySubtree);
+  var subtree = cloned[index];
+  var subtreeLength = length - (index * capacitySubtree);
+  cloned[index] = popTree(subtree, subtreeLength);
+  return cloned;
+}
+
 PersistentVector.prototype.pop = function PersistentVector__pop() {
   // FIXME: don't use slice for this
-  return this.slice(0, this.length - 1);
+  var clone;
+  if (this.length == 0) {
+    return this;
+  }
+  
+  var quotient = Math.log(this.length-1)/Math.log(32);
+  if (quotient == Math.floor(quotient)) {
+    // This is the case of when we need to decrease the depth of the tree.
+    clone = cloneVec(this);
+    clone._contents = clone._contents[0];
+    clone.length -= 1;
+    clone._maxShift -= 5;
+    return clone;
+  }
+
+  if (this.length % 32 != 1) {
+    // This case is when we need to just remove an element in the leaf node 
+    // withouth remove the leaf. We are only setting the last element to null
+    // so it gets garbage collected!
+    clone = internalSet(this, this.length-1, null);
+    clone.length -= 1;
+    return clone;
+  }
+
+  // Only one case left! That is where we need to remove a leaf node from the 
+  // tree.
+  clone = cloneVec(this);
+  clone._contents = popTree(clone._contents, clone.length);
+  clone.length -= 1;
+  return clone;
 };
 
 PersistentVector.prototype.slice = function PersistentVector__slice(begin, end) {
